@@ -1,39 +1,30 @@
-# Dockerfile
 FROM maven:3.8.4-openjdk-11 AS build
 WORKDIR /app
 
-# Copy pom.xml first to leverage Docker cache
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Copy source code
 COPY src ./src
-
-# Build the application
 RUN mvn clean package -DskipTests
 
 FROM tomcat:9.0-jre11-openjdk-slim
 
-# Install psql client for health checks (optional)
-RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
-
-# Remove default Tomcat apps
+# Remove default apps
 RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Copy WAR file from build stage
+# Copy WAR file
 COPY --from=build /app/target/supabase-app.war /usr/local/tomcat/webapps/ROOT.war
 
-# Create a health check script
+# Create a script to print environment info on startup
 RUN echo '#!/bin/bash\n\
-pg_isready -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" || exit 1\n\
-curl -f http://localhost:8080/ || exit 1' > /healthcheck.sh && \
-chmod +x /healthcheck.sh
+echo "=== RENDER ENVIRONMENT INFO ==="\n\
+echo "DATABASE_URL length: ${#DATABASE_URL}"\n\
+echo "DB_URL: ${DB_URL:-[NOT SET]}"\n\
+echo "JAVA_OPTS: ${JAVA_OPTS}"\n\
+echo "RENDER_EXTERNAL_URL: ${RENDER_EXTERNAL_URL}"\n\
+echo "RENDER_INSTANCE_ID: ${RENDER_INSTANCE_ID}"\n\
+echo "==============================="\n\
+exec catalina.sh run' > /startup.sh && chmod +x /startup.sh
 
-# Expose port 8080
 EXPOSE 8080
-
-# Set environment variables
-ENV CATALINA_OPTS="-Xmx512m -Djava.security.egd=file:/dev/./urandom"
-
-# Start Tomcat
-CMD ["catalina.sh", "run"]
+CMD ["/startup.sh"]
