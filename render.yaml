@@ -1,0 +1,21 @@
+# render.yaml
+services:
+  - type: web
+    name: supabase-java-app
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: JAVA_OPTS
+        value: "-Xmx512m -Xms256m"
+    healthCheckPath: /
+    autoDeploy: true
+    numInstances: 1
+
+databases:
+  - name: supabase-db
+    databaseName: myapp
+    user: myapp_user
+    plan: free
+    ipAllowList: []  # Allow all IPs (for Supabase connection)
